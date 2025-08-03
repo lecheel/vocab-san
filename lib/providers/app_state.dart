@@ -4,25 +4,28 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vocab_jp/models/vocabulary_entry.dart';
+import 'package:vocab_jp/models/vocab_pack.dart';
 import 'package:http/http.dart' as http;
 import 'package:archive/archive.dart';
 import 'package:path/path.dart' as p;
 
 class AppState with ChangeNotifier {
-  // The URL of your vocabulary pack.
-  // Host this ZIP file somewhere public (e.g., GitHub, your own server).
-  static const String DOWNLOAD_URL =
-      'https://example.com/path/to/your/vocabulary.zip';
+  // This is now the default fallback URL.
+  static const String DEFAULT_MANIFEST_URL =
+      'https://raw.githubusercontent.com/master7720/gtts/main/manifest.json';
+
+  // New variable to hold the current URL.
+  String _manifestUrl = DEFAULT_MANIFEST_URL;
 
   List<File> _files = [];
   List<VocabularyEntry> _vocabulary = [];
   int _currentCardIndex = 0;
   String? _activeFilePath;
 
-  // New state variables for download status
+  // States for download and manifest loading
   bool _isLoading = false;
   String _statusMessage = '';
-
+  List<VocabPack> _availablePacks = [];
   // Settings
   int _jpRepeats = 2;
   int _enRepeats = 1;
@@ -31,8 +34,10 @@ class AppState with ChangeNotifier {
   TabController? tabController;
 
   // Getters
+  String get manifestUrl => _manifestUrl;
   List<File> get files => _files;
   List<VocabularyEntry> get vocabulary => _vocabulary;
+  List<VocabPack> get availablePacks => _availablePacks;
   int get currentCardIndex => _currentCardIndex;
   VocabularyEntry? get currentCard =>
       _vocabulary.isEmpty ? null : _vocabulary[_currentCardIndex];
@@ -43,6 +48,14 @@ class AppState with ChangeNotifier {
   int get jpRepeats => _jpRepeats;
   int get enRepeats => _enRepeats;
   int get delaySeconds => _delaySeconds;
+
+  // NEW: A method to update the URL and save it to SharedPreferences
+  Future<void> updateManifestUrl(String newUrl) async {
+    _manifestUrl = newUrl;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('manifestUrl', newUrl);
+    notifyListeners();
+  }
 
   // Modified: This is now just for switching between already loaded files
   Future<void> loadVocabulary(File file) async {
@@ -70,17 +83,115 @@ class AppState with ChangeNotifier {
     notifyListeners();
   }
 
-  // NEW: Scans the app's documents directory for .json files
+  // UPDATED: Now part of the loadSettings method
+  @override
+  Future<void> loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Load playback settings
+    _jpRepeats = prefs.getInt('jpRepeats') ?? 2;
+    _enRepeats = prefs.getInt('enRepeats') ?? 1;
+    _delaySeconds = prefs.getInt('delaySeconds') ?? 1;
+
+    // Load the custom manifest URL, falling back to the default if not set.
+    _manifestUrl = prefs.getString('manifestUrl') ?? DEFAULT_MANIFEST_URL;
+
+    notifyListeners();
+  }
+
+  // UPDATED: fetchManifest now uses the _manifestUrl variable
+  Future<void> fetchManifest() async {
+    _isLoading = true;
+    _statusMessage = 'Fetching available vocabulary packs...';
+    _availablePacks = []; // Clear old packs
+    notifyListeners();
+
+    try {
+      // Use the (potentially custom) URL from our state variable
+      final response = await http.get(Uri.parse(_manifestUrl));
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = jsonDecode(response.body);
+        _availablePacks = jsonList
+            .map((json) => VocabPack.fromJson(json))
+            .toList();
+        _statusMessage = 'Please select a pack to download.';
+      } else {
+        throw Exception('Failed to load manifest: ${response.statusCode}');
+      }
+    } catch (e) {
+      _statusMessage =
+          'Could not fetch pack list from $_manifestUrl. Error: $e';
+      _availablePacks = [];
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> downloadAndUnzipVocabulary(VocabPack pack) async {
+    _isLoading = true;
+    _statusMessage = 'Starting download for "${pack.name}"...';
+    notifyListeners();
+
+    try {
+      final documentsDir = await getApplicationDocumentsDirectory();
+
+      _statusMessage = 'Downloading from ${pack.url}...';
+      notifyListeners();
+      final response = await http.get(
+        Uri.parse(pack.url),
+      ); // Use the pack's URL
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to download file: ${response.statusCode}');
+      }
+      final bytes = response.bodyBytes;
+
+      _statusMessage = 'Extracting files...';
+      notifyListeners();
+      final archive = ZipDecoder().decodeBytes(bytes);
+
+      // Create a sub-directory for the pack to avoid name collisions
+      final packDir = Directory(p.join(documentsDir.path, pack.id));
+      if (await packDir.exists()) {
+        await packDir.delete(recursive: true); // Clear old version
+      }
+      await packDir.create(recursive: true);
+
+      for (final file in archive) {
+        final filename = file.name;
+        // IMPORTANT: Extract into the pack's subdirectory
+        final filePath = p.join(packDir.path, filename);
+
+        if (file.isFile) {
+          final data = file.content as List<int>;
+          await File(filePath).writeAsBytes(data, flush: true);
+        }
+      }
+      _statusMessage = 'Download of "${pack.name}" complete!';
+      // Now, update which directory we look for files in.
+      // This is a bigger change, let's adjust scanForLocalVocabulary
+    } catch (e) {
+      _statusMessage = 'An error occurred: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+      // Rescan for the new files
+      await scanForLocalVocabulary();
+    }
+  }
+
+  // UPDATED: Now scans all subdirectories in the documents folder.
   Future<void> scanForLocalVocabulary() async {
     _isLoading = true;
     notifyListeners();
 
     final documentsDir = await getApplicationDocumentsDirectory();
-    final dir = Directory(documentsDir.path);
     final List<File> jsonFiles = [];
 
-    if (await dir.exists()) {
-      await for (var entity in dir.list(recursive: false)) {
+    if (await documentsDir.exists()) {
+      // Scan subdirectories for json files
+      await for (var entity in documentsDir.list(recursive: true)) {
         if (entity is File && entity.path.endsWith('.json')) {
           jsonFiles.add(entity);
         }
@@ -89,63 +200,13 @@ class AppState with ChangeNotifier {
 
     _files = jsonFiles;
     if (_files.isNotEmpty) {
+      // Maybe load the first one by default, or none until user clicks.
       await loadVocabulary(_files.first);
+    } else {
+      _vocabulary = []; // Clear vocabulary if no files found
     }
     _isLoading = false;
     notifyListeners();
-  }
-
-  // NEW: The core download and unzip logic
-  Future<void> downloadAndUnzipVocabulary() async {
-    _isLoading = true;
-    _statusMessage = 'Starting download...';
-    notifyListeners();
-
-    try {
-      // 1. Get directory to save files
-      final documentsDir = await getApplicationDocumentsDirectory();
-
-      // 2. Download the ZIP file
-      _statusMessage = 'Downloading from $DOWNLOAD_URL...';
-      notifyListeners();
-      final response = await http.get(Uri.parse(DOWNLOAD_URL));
-
-      if (response.statusCode != 200) {
-        throw Exception('Failed to download file: ${response.statusCode}');
-      }
-      final bytes = response.bodyBytes;
-
-      // 3. Unzip the file
-      _statusMessage = 'Extracting files...';
-      notifyListeners();
-      final archive = ZipDecoder().decodeBytes(bytes);
-
-      for (final file in archive) {
-        final filename = file.name;
-        final filePath = p.join(documentsDir.path, filename);
-
-        if (file.isFile) {
-          final data = file.content as List<int>;
-          final f = File(filePath);
-          await f.create(recursive: true);
-          await f.writeAsBytes(data);
-        } else {
-          // It's a directory
-          await Directory(filePath).create(recursive: true);
-        }
-      }
-
-      _statusMessage = 'Download and extraction complete!';
-      _isLoading = false;
-      notifyListeners();
-
-      // 4. Rescan for the new files
-      await scanForLocalVocabulary();
-    } catch (e) {
-      _statusMessage = 'An error occurred: $e';
-      _isLoading = false;
-      notifyListeners();
-    }
   }
 
   // Methods for file and vocabulary management
@@ -179,15 +240,6 @@ class AppState with ChangeNotifier {
           (_currentCardIndex - 1 + _vocabulary.length) % _vocabulary.length;
       notifyListeners();
     }
-  }
-
-  // Methods for settings
-  Future<void> loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    _jpRepeats = prefs.getInt('jpRepeats') ?? 2;
-    _enRepeats = prefs.getInt('enRepeats') ?? 1;
-    _delaySeconds = prefs.getInt('delaySeconds') ?? 1;
-    notifyListeners();
   }
 
   Future<void> updateJpRepeats(int value) async {

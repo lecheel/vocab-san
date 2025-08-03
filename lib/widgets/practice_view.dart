@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:vocab_jp/providers/app_state.dart';
 import 'package:vocab_jp/providers/audio_service.dart';
 import 'package:vocab_jp/widgets/vocabulary_card.dart';
+import 'package:path/path.dart' as p;
 
 class PracticeView extends StatefulWidget {
   const PracticeView({super.key});
@@ -18,21 +19,26 @@ class _PracticeViewState extends State<PracticeView> {
   bool _isAutoPlaying = false;
   Timer? _autoPlayTimer;
 
-  // Helper function to play the Japanese audio for the current card
   void _playCurrentJapanese() {
     final appState = Provider.of<AppState>(context, listen: false);
     final audioService = Provider.of<AudioService>(context, listen: false);
-    if (appState.currentCard != null) {
-      audioService.playAudio(appState.currentCard!.word, lang: 'ja');
+    if (appState.currentCard != null && appState.activeFilePath != null) {
+      final mediaDir = p.dirname(appState.activeFilePath!);
+      audioService.playAudio(appState.currentCard!.word, mediaDir, lang: 'ja');
     }
   }
 
-  // Helper function to play the English audio for the current card
   void _playCurrentEnglish() {
     final appState = Provider.of<AppState>(context, listen: false);
     final audioService = Provider.of<AudioService>(context, listen: false);
-    if (appState.currentCard != null) {
-      audioService.playAudio(appState.currentCard!.english, lang: 'en');
+    if (appState.currentCard != null && appState.activeFilePath != null) {
+      final mediaDir = p.dirname(appState.activeFilePath!);
+      // BUG FIX: Was playing .word, now correctly plays .english
+      audioService.playAudio(
+        appState.currentCard!.english,
+        mediaDir,
+        lang: 'en',
+      );
     }
   }
 
@@ -53,25 +59,26 @@ class _PracticeViewState extends State<PracticeView> {
     _runAutoPlayCycle();
   }
 
-  // The core loop for auto-play functionality
   void _runAutoPlayCycle() async {
-    // Safety check: stop if the user has cancelled auto-play
     if (!_isAutoPlaying) return;
 
     final appState = Provider.of<AppState>(context, listen: false);
     final audioService = Provider.of<AudioService>(context, listen: false);
     final card = appState.currentCard;
 
-    if (card == null) {
+    if (card == null || appState.activeFilePath == null) {
       _stopAutoPlay();
       return;
     }
 
     try {
-      // Play Japanese audio for the configured number of repeats
+      final mediaDir = p.dirname(
+        appState.activeFilePath!,
+      ); // Get directory once
+
       for (int i = 0; i < appState.jpRepeats; i++) {
         if (!_isAutoPlaying) return; // Allow interruption
-        await audioService.playAudio(card.word, lang: 'ja');
+        await audioService.playAudio(card.word, mediaDir, lang: 'ja');
         if (i < appState.jpRepeats - 1)
           await Future.delayed(const Duration(milliseconds: 500));
       }
@@ -82,7 +89,7 @@ class _PracticeViewState extends State<PracticeView> {
       // Play English audio for the configured number of repeats
       for (int i = 0; i < appState.enRepeats; i++) {
         if (!_isAutoPlaying) return; // Allow interruption
-        await audioService.playAudio(card.english, lang: 'en');
+        await audioService.playAudio(card.english, mediaDir, lang: 'en');
         if (i < appState.enRepeats - 1)
           await Future.delayed(const Duration(milliseconds: 500));
       }

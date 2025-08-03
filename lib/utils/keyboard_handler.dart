@@ -5,6 +5,7 @@ import 'package:vocab_jp/providers/app_state.dart';
 import 'package:vocab_jp/providers/audio_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
+import 'package:path/path.dart' as p;
 
 class KeyboardHandler extends StatelessWidget {
   final Widget child;
@@ -46,6 +47,9 @@ class KeyboardHandler extends StatelessWidget {
     if (appState.tabController?.index != 1) return;
 
     final currentCard = appState.currentCard;
+    final mediaDir = appState.activeFilePath != null
+        ? p.dirname(appState.activeFilePath!)
+        : null;
 
     switch (event.logicalKey) {
       case LogicalKeyboardKey.arrowLeft:
@@ -56,15 +60,15 @@ class KeyboardHandler extends StatelessWidget {
         break;
       case LogicalKeyboardKey.arrowUp:
       case LogicalKeyboardKey.space:
-        if (currentCard != null) {
-          audioService.playAudio(currentCard.word, lang: 'ja');
+        if (currentCard != null && mediaDir != null) {
+          audioService.playAudio(currentCard.word, mediaDir, lang: 'ja');
         }
         break;
       case LogicalKeyboardKey.arrowDown:
       case LogicalKeyboardKey.enter:
       case LogicalKeyboardKey.numpadEnter:
-        if (currentCard != null) {
-          audioService.playAudio(currentCard.english, lang: 'en');
+        if (currentCard != null && mediaDir != null) {
+          audioService.playAudio(currentCard.english, mediaDir, lang: 'en');
         }
         break;
     }

@@ -6,6 +6,7 @@ import 'package:vocab_jp/utils/keyboard_handler.dart';
 import 'package:vocab_jp/widgets/file_list_view.dart';
 import 'package:vocab_jp/widgets/practice_view.dart';
 import 'package:vocab_jp/widgets/settings_view.dart';
+import 'package:vocab_jp/widgets/app_settings_view.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -92,9 +93,9 @@ class _HomePageState extends State<HomePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    Provider.of<AppState>(context, listen: false).tabController =
-        _tabController;
+    // UPDATED: Tab controller length is now 4
+    _tabController = TabController(length: 4, vsync: this); 
+    Provider.of<AppState>(context, listen: false).tabController = _tabController;
   }
 
   @override
@@ -111,22 +112,30 @@ class _HomePageState extends State<HomePage>
     return KeyboardHandler(
       focusNode: _focusNode,
       child: DefaultTabController(
-        length: 3,
+        length: 4,
         child: Scaffold(
           appBar: AppBar(
             title: const Text('Vocab-San'),
             bottom: TabBar(
               controller: _tabController,
               tabs: const [
-                Tab(icon: Icon(Icons.folder_open), text: "File List"),
+                // UPDATED: Added a new Tab
+                Tab(icon: Icon(Icons.download), text: "Packs"), // Renamed for clarity
                 Tab(icon: Icon(Icons.psychology), text: "Practice"),
-                Tab(icon: Icon(Icons.settings), text: "Playback Settings"),
+                Tab(icon: Icon(Icons.audiotrack), text: "Playback"), // Renamed for clarity
+                Tab(icon: Icon(Icons.settings), text: "App Settings"), // The new tab
               ],
             ),
           ),
           body: TabBarView(
             controller: _tabController,
-            children: const [FileListView(), PracticeView(), SettingsView()],
+            children: const [
+              // UPDATED: Added the new view
+              FileListView(),
+              PracticeView(),
+              SettingsView(), // This is the playback settings view
+              AppSettingsView(), // This is our new app settings view
+            ],
           ),
         ),
       ),
