@@ -1,10 +1,16 @@
-
 [
-  {
-    "id": "n1_essentials",
-    "name": "JLPT N1 Essentials",
-    "description": "The most common 17 words for the N1 level. A great starting point.",
-    "version": "1.0.2",
-    "url": "https://github.com/lecheel/vocab-san/raw/download_pack/main/vocab-packs/n1_essentials_v1.0.2.zip"
-  }
+    {
+        "id": "n1_essentials",
+        "name": "JLPT N1 Essentials",
+        "description": "The most common 17 words for the N1 level. A great starting point.",
+        "version": "1.0.2",
+        "url": "https://github.com/lecheel/vocab-san/raw/download_pack/main/vocab-packs/n1_essentials_v1.0.2.zip"
+    },
+    {
+        "id": "n1_daily01",
+        "name": "JLPT N1 Essentials",
+        "description": "Comprehensive Japanese language course focusing on practical daily conversations related to cuisine, hospitality, and seasonal traditions, designed to enhance both linguistic proficiency and cultural understanding.",
+        "version": "1.0.1",
+        "url": "https://github.com/lecheel/vocab-san/raw/download_pack/main/vocab-packs/n1_daily_v1.0.1.zip"
+    }
 ]
