@@ -12,7 +12,7 @@ import 'package:path/path.dart' as p;
 class AppState with ChangeNotifier {
   // This is now the default fallback URL.
   static const String DEFAULT_MANIFEST_URL =
-      'https://raw.githubusercontent.com/lecheel/vocab-san/refs/heads/download_pack/main/manifest.json';
+      'https://raw.githubusercontent.com/lecheel/vocab-san/download_pack/main/manifest.json';
 
   // New variable to hold the current URL.
   String _manifestUrl = DEFAULT_MANIFEST_URL;
