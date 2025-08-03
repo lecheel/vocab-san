@@ -40,7 +40,7 @@ dev_dependencies:
     sdk: flutter
 
   provider: ^6.0.5          # For state management
-  file_picker: ^5.3.1        # For the 'Add Files' dialog
+  file_picker: ^10.2.1       # For the 'Add Files' dialog
   desktop_drop: ^0.4.1       # For drag-and-drop support
   shared_preferences: ^2.1.1 # To save user settings
   path_provider: ^2.0.15     # To find the cache directory

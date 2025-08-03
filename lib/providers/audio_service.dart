@@ -10,10 +10,7 @@ class AudioService with ChangeNotifier {
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool isPlaying = false;
 
-  // We no longer need _init or _documentsPath because the path will be dynamic.
-
-  // The hashing logic remains identical for both platforms.
-  String _getCacheFilename_rust_style(String text, String lang) {
+  String getCacheFilename(String text, String lang) {
     final String langCode;
     final String languageString;
     if (lang == 'ja') {
@@ -23,7 +20,6 @@ class AudioService with ChangeNotifier {
       langCode = 'en';
       languageString = 'English';
     }
-
     final textBytes = utf8.encode(text);
     final langBytes = utf8.encode(languageString);
     final builder = BytesBuilder();
@@ -36,7 +32,6 @@ class AudioService with ChangeNotifier {
     return 'hash_${shortHash}_$langCode.mp3';
   }
 
-  // UPDATED: It now requires the path of the *directory* containing the media.
   Future<void> playAudio(
     String text,
     String mediaDirectoryPath, {
@@ -44,41 +39,48 @@ class AudioService with ChangeNotifier {
   }) async {
     if (text.trim().isEmpty) return;
 
-    final String filename = _getCacheFilename_rust_style(text, lang);
+    final String filename = getCacheFilename(text, lang);
     final audioFile = File(p.join(mediaDirectoryPath, filename));
 
     try {
+      // Stop any current playback
+      await _audioPlayer.stop();
+
       isPlaying = true;
       notifyListeners();
 
       if (await audioFile.exists()) {
-        debugPrint("Playing local file: ${audioFile.path}");
         await _audioPlayer.setFilePath(audioFile.path);
-      } else {
-        // On all platforms, if the file doesn't exist in the documents dir, we can't play it.
-        debugPrint(
-          "Error: Audio file not found: ${audioFile.path}. It was not in the downloaded ZIP.",
-        );
-        isPlaying = false;
-        notifyListeners();
-        return;
-      }
+        await _audioPlayer.play();
 
-      await _audioPlayer.play();
-      await _audioPlayer.processingStateStream.firstWhere(
-        (state) => state == ProcessingState.completed,
-      );
+        // Wait for completion
+        await _audioPlayer.processingStateStream.firstWhere(
+          (state) => state == ProcessingState.completed,
+        );
+      } else {
+        debugPrint("Playback failed because file was not found.");
+      }
     } catch (e) {
-      debugPrint("Error playing audio for '$filename'. Error: $e");
+      debugPrint("Error during audio playback: $e");
     } finally {
       isPlaying = false;
       notifyListeners();
     }
   }
 
-  void stop() {
-    _audioPlayer.stop();
-    isPlaying = false;
-    notifyListeners();
+  Future<void> stop() async {
+    try {
+      await _audioPlayer.stop();
+      isPlaying = false;
+      notifyListeners();
+    } catch (e) {
+      debugPrint("Error stopping audio: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
   }
 }
