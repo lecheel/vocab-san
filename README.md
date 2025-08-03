@@ -1,5 +1,3 @@
----
-
 # Vocab-San: A Dynamic Vocabulary Learning App
 
 **Vocab-San** is a sleek, cross-platform vocabulary learning application built with Flutter. It's designed for serious learners who want to use custom, dynamic vocabulary lists for practice, with a special focus on Japanese.
