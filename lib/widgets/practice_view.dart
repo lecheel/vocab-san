@@ -137,82 +137,87 @@ class _PracticeViewState extends State<PracticeView> {
         if (appState.vocabulary.isEmpty) {
           return const Center(
             child: Text(
-              'No vocabulary file loaded.\nPlease add a JSON file in the "File List" tab.',
+              'No vocabulary file loaded.\nPlease select a list from the "Packs" tab.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white70),
             ),
           );
         }
 
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              // The vocabulary card display
-              Expanded(child: VocabularyCard(entry: appState.currentCard!)),
-              const SizedBox(height: 16),
-              // Progress indicator
-              Text(
-                'Card ${appState.currentCardIndex + 1} of ${appState.vocabulary.length}',
-              ),
-              const SizedBox(height: 16),
-              // Manual playback controls
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_ios),
-                    tooltip: 'Previous Card (Left Arrow)',
-                    onPressed: _isAutoPlaying ? null : appState.previousCard,
-                    iconSize: 32,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.volume_up_rounded),
-                    tooltip: 'Play Japanese (Up Arrow / Space)',
-                    onPressed: _isAutoPlaying ? null : _playCurrentJapanese,
-                    color: Colors.lightBlueAccent,
-                    iconSize: 40,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.volume_up_rounded),
-                    tooltip: 'Play English (Down Arrow / Enter)',
-                    onPressed: _isAutoPlaying ? null : _playCurrentEnglish,
-                    color: Colors.greenAccent,
-                    iconSize: 40,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.arrow_forward_ios),
-                    tooltip: 'Next Card (Right Arrow)',
-                    onPressed: _isAutoPlaying ? null : appState.nextCard,
-                    iconSize: 32,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              // Auto-play button
-              ElevatedButton.icon(
-                onPressed: _toggleAutoPlay,
-                icon: Icon(
-                  _isAutoPlaying
-                      ? Icons.stop_circle_outlined
-                      : Icons.play_circle_outline,
+        // We wrap the entire view's content in a SafeArea widget.
+        return SafeArea(
+          // We only need padding on the bottom. The AppBar handles the top.
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                // The vocabulary card display
+                Expanded(child: VocabularyCard(entry: appState.currentCard!)),
+                const SizedBox(height: 16),
+                // Progress indicator
+                Text(
+                  'Card ${appState.currentCardIndex + 1} of ${appState.vocabulary.length}',
                 ),
-                label: Text(
-                  _isAutoPlaying ? '⏹️ Stop Auto-Play' : '▶️ Start Auto-Play',
+                const SizedBox(height: 16),
+                // Manual playback controls
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios),
+                      tooltip: 'Previous Card (Left Arrow)',
+                      onPressed: _isAutoPlaying ? null : appState.previousCard,
+                      iconSize: 32,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.volume_up_rounded),
+                      tooltip: 'Play Japanese (Up Arrow / Space)',
+                      onPressed: _isAutoPlaying ? null : _playCurrentJapanese,
+                      color: Colors.lightBlueAccent,
+                      iconSize: 40,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.volume_up_rounded),
+                      tooltip: 'Play English (Down Arrow / Enter)',
+                      onPressed: _isAutoPlaying ? null : _playCurrentEnglish,
+                      color: Colors.greenAccent,
+                      iconSize: 40,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_forward_ios),
+                      tooltip: 'Next Card (Right Arrow)',
+                      onPressed: _isAutoPlaying ? null : appState.nextCard,
+                      iconSize: 32,
+                    ),
+                  ],
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isAutoPlaying
-                      ? Colors.red.shade700
-                      : Colors.teal,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 30,
-                    vertical: 15,
+                const SizedBox(height: 24),
+                // Auto-play button
+                ElevatedButton.icon(
+                  onPressed: _toggleAutoPlay,
+                  icon: Icon(
+                    _isAutoPlaying
+                        ? Icons.stop_circle_outlined
+                        : Icons.play_circle_outline,
                   ),
-                  textStyle: const TextStyle(fontSize: 16),
+                  label: Text(
+                    _isAutoPlaying ? '⏹️ Stop Auto-Play' : '▶️ Start Auto-Play',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isAutoPlaying
+                        ? Colors.red.shade700
+                        : Colors.teal,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 30,
+                      vertical: 15,
+                    ),
+                    textStyle: const TextStyle(fontSize: 16),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
