@@ -52,8 +52,11 @@ The app features a modern dark-themed UI, full audio support via Text-to-Speech,
     # To run on a connected mobile device or emulator
     flutter run
 
+    flutter pub run flutter_launcher_icons:main
+    
     # To run on macOS desktop
     flutter run -d macos
+
     ```
 
 ## 📦 Vocabulary Pack Specification

@@ -48,6 +48,7 @@ dev_dependencies:
   crypto: ^3.0.3  
   http: ^1.1.0        # For downloading the ZIP file
   archive: ^3.4.9
+  flutter_launcher_icons: ^0.13.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -58,6 +59,15 @@ dev_dependencies:
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
+flutter_launcher_icons:
+  android: true
+  ios: true
+  macos:
+    generate: true
+    image_path: "assets/icon/icon.png"
+  image_path: "assets/icon/icon.png"
+  # adaptive_icon_background: "#FFFFFF"
+  # adaptive_icon_foreground: "assets/icon/foreground.png"
 
 # The following section is specific to Flutter packages.
 flutter:
