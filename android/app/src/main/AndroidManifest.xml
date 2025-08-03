@@ -6,6 +6,7 @@
         android:label="vocab_jp"
         android:name="${applicationName}"
         android:requestLegacyExternalStorage="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

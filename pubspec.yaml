@@ -44,7 +44,7 @@ dev_dependencies:
   desktop_drop: ^0.4.1       # For drag-and-drop support
   shared_preferences: ^2.1.1 # To save user settings
   path_provider: ^2.0.15     # To find the cache directory
-  just_audio: ^0.9.32        # For playing audio files
+  audioplayers: ^5.2.1
   crypto: ^3.0.3  
   http: ^1.1.0        # For downloading the ZIP file
   archive: ^3.4.9

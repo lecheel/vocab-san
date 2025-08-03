@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:vocab_jp/providers/app_state.dart';
+import 'package:vocab_jp/providers/audio_service.dart';
 
 class AppSettingsView extends StatefulWidget {
   const AppSettingsView({super.key});

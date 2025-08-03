@@ -1,16 +1,16 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 class AudioService with ChangeNotifier {
-  final AudioPlayer _audioPlayer = AudioPlayer();
   bool isPlaying = false;
 
-  String getCacheFilename(String text, String lang) {
+  String _getCacheFilename_rust_style(String text, String lang) {
+    // This function is correct.
     final String langCode;
     final String languageString;
     if (lang == 'ja') {
@@ -39,48 +39,47 @@ class AudioService with ChangeNotifier {
   }) async {
     if (text.trim().isEmpty) return;
 
-    final String filename = getCacheFilename(text, lang);
+    final String filename = _getCacheFilename_rust_style(text, lang);
     final audioFile = File(p.join(mediaDirectoryPath, filename));
 
+    final player = AudioPlayer();
+    // A Completer allows us to create a Future that we can manually complete later.
+    final completer = Completer<void>();
+    StreamSubscription? subscription;
+
     try {
-      // Stop any current playback
-      await _audioPlayer.stop();
+      if (!await audioFile.exists()) {
+        await player.release(); // Clean up player if file doesn't exist
+        return;
+      }
 
       isPlaying = true;
       notifyListeners();
 
-      if (await audioFile.exists()) {
-        await _audioPlayer.setFilePath(audioFile.path);
-        await _audioPlayer.play();
+      // Listen for the onPlayerComplete event. When it fires, our sound is done.
+      subscription = player.onPlayerComplete.listen((event) {
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      });
 
-        // Wait for completion
-        await _audioPlayer.processingStateStream.firstWhere(
-          (state) => state == ProcessingState.completed,
-        );
-      } else {
-        debugPrint("Playback failed because file was not found.");
-      }
+      // Use DeviceFileSource as it is the most direct method for local files.
+      await player.play(DeviceFileSource(audioFile.path));
+
+      // Wait here until the onPlayerComplete listener calls completer.complete().
+      await completer.future;
     } catch (e) {
-      debugPrint("Error during audio playback: $e");
+      if (!completer.isCompleted) {
+        completer.completeError(e);
+      }
     } finally {
       isPlaying = false;
       notifyListeners();
+      // Clean up the stream subscription and release the player resources.
+      await subscription?.cancel();
+      await player.release();
     }
   }
 
-  Future<void> stop() async {
-    try {
-      await _audioPlayer.stop();
-      isPlaying = false;
-      notifyListeners();
-    } catch (e) {
-      debugPrint("Error stopping audio: $e");
-    }
-  }
-
-  @override
-  void dispose() {
-    _audioPlayer.dispose();
-    super.dispose();
-  }
+  void stop() {}
 }
