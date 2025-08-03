@@ -5,7 +5,7 @@
 The app features a modern dark-themed UI, full audio support via Text-to-Speech, configurable practice sessions, and intelligent caching. It's built to be flexible, sourcing its vocabulary packs from a dynamic online manifest file, which can be customized by the user.
 
  
-*(**Action:** You should replace this with an actual screenshot of your app)*
+![image](./vocab_san.png)
 
 ## ✨ Features
 
