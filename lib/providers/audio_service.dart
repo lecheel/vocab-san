@@ -1,78 +1,115 @@
-import 'dart:io';
-import 'package:crypto/crypto.dart';
-import 'package:flutter/material.dart';
+import 'dart:io'; // <-- IMPORTANT: Import 'dart:io' to use the Platform class
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
+import 'package:crypto/crypto.dart';
 
 class AudioService with ChangeNotifier {
   final AudioPlayer _audioPlayer = AudioPlayer();
-  String? _cachePath;
+  String? _cachePath; // This will only be used on Desktop
   bool isPlaying = false;
 
   AudioService() {
     _init();
   }
 
+  // This initialization step is now conditional.
   Future<void> _init() async {
-    // This cache path is compatible with the etalk CLI's default
-    final cacheDir = await getApplicationCacheDirectory();
-    _cachePath = '${cacheDir.path}/etalk';
-    await Directory(_cachePath!).create(recursive: true);
+    // Only set up a writable cache path on desktop platforms.
+    if (Platform.isMacOS || Platform.isLinux || Platform.isWindows) {
+      _cachePath = '${Directory.current.path}/assets';
+      await Directory(_cachePath!).create(recursive: true);
+      debugPrint("Desktop Mode: Writable audio cache path set to: $_cachePath");
+    } else {
+      debugPrint("Mobile Mode: Using bundled assets only.");
+    }
   }
 
-  // Generates a predictable filename based on content and voice.
-  // This logic should match `etalk`'s internal caching to find existing files.
-  String _getCacheKey(String text, String voice) {
-    final bytes = utf8.encode('$text-$voice');
-    return sha256.convert(bytes).toString();
+  // The hashing logic remains identical for both platforms.
+  String _getCacheFilename_rust_style(String text, String lang) {
+    final String langCode;
+    final String languageString;
+    if (lang == 'ja') {
+      langCode = 'ja';
+      languageString = 'Japanese';
+    } else {
+      langCode = 'en';
+      languageString = 'English';
+    }
+
+    final textBytes = utf8.encode(text);
+    final langBytes = utf8.encode(languageString);
+    final builder = BytesBuilder();
+    builder.add(textBytes);
+    builder.add(langBytes);
+    final combinedBytes = builder.toBytes();
+    final digest = sha256.convert(combinedBytes);
+    final fullHash = digest.toString();
+    final shortHash = fullHash.substring(0, 16);
+    return 'hash_${shortHash}_$langCode.mp3';
   }
 
   Future<void> playAudio(String text, {String lang = "ja"}) async {
-    if (_cachePath == null || text.trim().isEmpty) return;
+    if (text.trim().isEmpty) return;
 
-    // Use appropriate voices for etalk
-    final voice = lang == 'ja' ? 'ja' : 'en';
-    final cacheKey = _getCacheKey(text, voice);
-    final audioFile = File('$_cachePath/$cacheKey.mp3');
+    // This filename is generated the same way on all platforms.
+    final String filename = _getCacheFilename_rust_style(text, lang);
 
-    if (!await audioFile.exists()) {
-      print("Cache miss. Generating audio for: '$text'");
-      try {
-        final result = await Process.run('etalk', [
-          '-t',
-          text,
-          '-v',
-          voice,
-          '-o',
-          audioFile.path,
-        ]);
-        if (result.exitCode != 0) {
-          print('etalk CLI Error: ${result.stderr}');
-          // Optionally, show an error to the user via a dialog or snackbar
-          return;
-        }
-      } catch (e) {
-        print(
-          "Failed to run etalk process. Is it installed and in your PATH? Error: $e",
-        );
-        return;
-      }
-    } else {
-      print("Cache hit for: '$text'");
-    }
-
+    // --- PLATFORM-SPECIFIC LOGIC ---
     try {
       isPlaying = true;
       notifyListeners();
-      await _audioPlayer.setFilePath(audioFile.path);
+
+      if (Platform.isMacOS || Platform.isLinux || Platform.isWindows) {
+        // --- DESKTOP LOGIC ---
+        final audioFile = File('$_cachePath/$filename');
+
+        if (!await audioFile.exists()) {
+          debugPrint("Desktop Cache Miss. Generating audio for: '$text'");
+          try {
+            final result = await Process.run('etalk', [
+              '-t',
+              text,
+              '-v',
+              lang,
+              '-o',
+              audioFile.path,
+            ]);
+            if (result.exitCode != 0) {
+              debugPrint('etalk CLI Error: ${result.stderr}');
+              // Stop playback attempt if generation fails
+              isPlaying = false;
+              notifyListeners();
+              return;
+            }
+          } catch (e) {
+            debugPrint(
+              "Failed to run etalk process. Is it installed and in your PATH? Error: $e",
+            );
+            isPlaying = false;
+            notifyListeners();
+            return;
+          }
+        } else {
+          debugPrint("Desktop Cache Hit. Playing from: ${audioFile.path}");
+        }
+        await _audioPlayer.setFilePath(audioFile.path);
+      } else {
+        // --- MOBILE (Android/iOS) LOGIC ---
+        final assetPath = 'assets/$filename';
+        debugPrint("Mobile Mode: Attempting to play bundled asset: $assetPath");
+        await _audioPlayer.setAsset(assetPath);
+      }
+
+      // --- COMMON PLAYBACK LOGIC ---
       await _audioPlayer.play();
-      // Wait for playback to finish
       await _audioPlayer.processingStateStream.firstWhere(
         (state) => state == ProcessingState.completed,
       );
     } catch (e) {
-      print("Error playing audio: $e");
+      debugPrint(
+        "Error playing audio for '$filename'. Asset may be missing. Error: $e",
+      );
     } finally {
       isPlaying = false;
       notifyListeners();
