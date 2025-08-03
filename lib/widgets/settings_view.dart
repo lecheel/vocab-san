@@ -44,7 +44,7 @@ class SettingsView extends StatelessWidget {
     required String subtitle,
     required int value,
     required ValueChanged<double> onChanged,
-    double min = 1,
+    double min = 0,
     double max = 5,
   }) {
     return Card(
