@@ -32,27 +32,54 @@ class _FileListViewState extends State<FileListView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Section for downloading new packs
-              const Text("Available for Download", style: TextStyle(fontSize: 18)),
+              const Text(
+                "Available for Download",
+                style: TextStyle(fontSize: 18),
+              ),
               const Divider(),
               if (appState.isLoading) const LinearProgressIndicator(),
-              if (appState.statusMessage.isNotEmpty) Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Text(appState.statusMessage, textAlign: TextAlign.center),
-              ),
+              if (appState.statusMessage.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Text(
+                    appState.statusMessage,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               Expanded(
                 flex: 2, // Give more space to the download list
                 child: ListView.builder(
                   itemCount: appState.availablePacks.length,
                   itemBuilder: (context, index) {
                     final pack = appState.availablePacks[index];
+                    // NEW: Check if this pack is already downloaded.
+                    final isDownloaded = appState.downloadedPackIds.contains(
+                      pack.id,
+                    );
+
                     return Card(
                       child: ListTile(
-                        leading: const Icon(Icons.cloud_download_outlined),
+                        // NEW: Change icon based on downloaded status.
+                        leading: Icon(
+                          isDownloaded
+                              ? Icons.check_circle
+                              : Icons.cloud_download_outlined,
+                          color: isDownloaded ? Colors.green : Colors.white70,
+                        ),
                         title: Text('${pack.name} (v${pack.version})'),
                         subtitle: Text(pack.description),
+                        // NEW: Add a trailing chip to show status.
+                        trailing: isDownloaded
+                            ? const Chip(
+                                label: Text('Downloaded'),
+                                padding: EdgeInsets.all(0),
+                              )
+                            : null,
+                        // Allow re-downloading by always having the onTap active,
+                        // unless a download is already in progress.
                         onTap: appState.isLoading
-                          ? null
-                          : () => appState.downloadAndUnzipVocabulary(pack),
+                            ? null
+                            : () => appState.downloadAndUnzipVocabulary(pack),
                       ),
                     );
                   },
@@ -66,25 +93,32 @@ class _FileListViewState extends State<FileListView> {
               Expanded(
                 flex: 1,
                 child: appState.files.isEmpty
-                  ? const Center(child: Text("No lists downloaded yet."))
-                  : ListView.builder(
-                    itemCount: appState.files.length,
-                    itemBuilder: (context, index) {
-                      final file = appState.files[index];
-                      final isActive = file.path == appState.activeFilePath;
-                      return Card(
-                        color: isActive ? Colors.teal.withOpacity(0.3) : null,
-                        child: ListTile(
-                          leading: const Icon(Icons.description),
-                          // Show a more readable name, like "n5_essentials/vocab.json"
-                          title: Text(file.path.split('/').sublist(file.path.split('/').length - 2).join('/')),
-                          onTap: () => appState.loadVocabulary(file),
-                          selected: isActive,
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                    ? const Center(child: Text("No lists downloaded yet."))
+                    : ListView.builder(
+                        itemCount: appState.files.length,
+                        itemBuilder: (context, index) {
+                          final file = appState.files[index];
+                          final isActive = file.path == appState.activeFilePath;
+                          return Card(
+                            color: isActive
+                                ? Colors.teal.withOpacity(0.3)
+                                : null,
+                            child: ListTile(
+                              leading: const Icon(Icons.description),
+                              // Show a more readable name, like "n5_essentials/vocab.json"
+                              title: Text(
+                                file.path
+                                    .split('/')
+                                    .sublist(file.path.split('/').length - 2)
+                                    .join('/'),
+                              ),
+                              onTap: () => appState.loadVocabulary(file),
+                              selected: isActive,
+                            ),
+                          );
+                        },
+                      ),
+              ),
             ],
           ),
         );

@@ -31,9 +31,11 @@ class AppState with ChangeNotifier {
   int _enRepeats = 1;
   int _delaySeconds = 1;
 
+  Set<String> _downloadedPackIds = {};
   TabController? tabController;
 
   // Getters
+  Set<String> get downloadedPackIds => _downloadedPackIds;
   String get manifestUrl => _manifestUrl;
   List<File> get files => _files;
   List<VocabularyEntry> get vocabulary => _vocabulary;
@@ -138,45 +140,41 @@ class AppState with ChangeNotifier {
 
       _statusMessage = 'Downloading from ${pack.url}...';
       notifyListeners();
-      final response = await http.get(
-        Uri.parse(pack.url),
-      ); // Use the pack's URL
-
-      if (response.statusCode != 200) {
+      final response = await http.get(Uri.parse(pack.url));
+      if (response.statusCode != 200)
         throw Exception('Failed to download file: ${response.statusCode}');
-      }
+
       final bytes = response.bodyBytes;
 
       _statusMessage = 'Extracting files...';
       notifyListeners();
       final archive = ZipDecoder().decodeBytes(bytes);
 
-      // Create a sub-directory for the pack to avoid name collisions
       final packDir = Directory(p.join(documentsDir.path, pack.id));
-      if (await packDir.exists()) {
-        await packDir.delete(recursive: true); // Clear old version
-      }
+      if (await packDir.exists()) await packDir.delete(recursive: true);
       await packDir.create(recursive: true);
 
       for (final file in archive) {
         final filename = file.name;
-        // IMPORTANT: Extract into the pack's subdirectory
         final filePath = p.join(packDir.path, filename);
 
         if (file.isFile) {
           final data = file.content as List<int>;
-          await File(filePath).writeAsBytes(data, flush: true);
+          final f = File(filePath);
+          await f.writeAsBytes(data, flush: true);
         }
       }
       _statusMessage = 'Download of "${pack.name}" complete!';
-      // Now, update which directory we look for files in.
-      // This is a bigger change, let's adjust scanForLocalVocabulary
+
+      // MODIFICATION: The following block that auto-loaded the vocabulary
+      // and switched tabs has been removed.
     } catch (e) {
       _statusMessage = 'An error occurred: $e';
     } finally {
       _isLoading = false;
       notifyListeners();
-      // Rescan for the new files
+      // Rescan for the new files. This will update the UI to show the
+      // pack is downloaded, but will not auto-load it.
       await scanForLocalVocabulary();
     }
   }
@@ -188,23 +186,34 @@ class AppState with ChangeNotifier {
 
     final documentsDir = await getApplicationDocumentsDirectory();
     final List<File> jsonFiles = [];
+    final Set<String> newDownloadedPackIds = {}; // Create a temporary set
 
     if (await documentsDir.exists()) {
       // Scan subdirectories for json files
       await for (var entity in documentsDir.list(recursive: true)) {
         if (entity is File && entity.path.endsWith('.json')) {
           jsonFiles.add(entity);
+          // NEW: Extract the pack ID from the path.
+          // The pack ID is the name of the parent directory.
+          final packId = p.basename(p.dirname(entity.path));
+          newDownloadedPackIds.add(packId);
         }
       }
     }
 
+    _downloadedPackIds = newDownloadedPackIds; // Update the main set
     _files = jsonFiles;
-    if (_files.isNotEmpty) {
-      // Maybe load the first one by default, or none until user clicks.
-      await loadVocabulary(_files.first);
-    } else {
-      _vocabulary = []; // Clear vocabulary if no files found
+
+    // FIX: Do NOT auto-load a file. Instead, check if the *currently active*
+    // file has been deleted. If so, clear the practice view.
+    final activeFileExists =
+        _activeFilePath != null && _files.any((f) => f.path == _activeFilePath);
+    if (!activeFileExists) {
+      _vocabulary = [];
+      _activeFilePath = null;
+      _currentCardIndex = 0;
     }
+
     _isLoading = false;
     notifyListeners();
   }
@@ -220,8 +229,9 @@ class AppState with ChangeNotifier {
       }
     }
 
-    if (_activeFilePath == null && _files.isNotEmpty) {
-      await loadVocabulary(_files.first);
+    // FIX: Remove auto-loading from here as well for consistent behavior.
+    if (_files.isEmpty) {
+      _vocabulary = [];
     }
     _isLoading = false;
     notifyListeners();
