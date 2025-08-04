@@ -67,6 +67,50 @@ class AppState with ChangeNotifier {
     super.dispose();
   }
 
+  // NEW: A single method to orchestrate app startup.
+  Future<void> initialize() async {
+    await loadSettings();
+    await _resumeLastPractice();
+  }
+
+  // NEW: Saves the current practice state to SharedPreferences.
+  Future<void> _savePracticeState() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_activeFilePath != null && _vocabulary.isNotEmpty) {
+      await prefs.setString('lastActiveFilePath', _activeFilePath!);
+      await prefs.setInt('lastCardIndex', _currentCardIndex);
+    } else {
+      // Clear the state if no file is active or vocabulary is empty.
+      await prefs.remove('lastActiveFilePath');
+      await prefs.remove('lastCardIndex');
+    }
+  }
+
+  // NEW: Attempts to resume the last practice session on startup.
+  Future<void> _resumeLastPractice() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastPath = prefs.getString('lastActiveFilePath');
+    if (lastPath == null) {
+      return; // No session to resume.
+    }
+
+    // We need the list of all local files to find the correct File object.
+    await scanForLocalVocabulary();
+
+    // Find the file that matches the saved path.
+    final lastFile = _files.firstWhere(
+      (f) => f.path == lastPath,
+      orElse: () => File(''), // Return a dummy if not found.
+    );
+
+    if (lastFile.path.isNotEmpty) {
+      final lastIndex = prefs.getInt('lastCardIndex') ?? 0;
+      // Load the vocabulary from the found file, starting at the saved index.
+      await loadVocabulary(lastFile, initialIndex: lastIndex);
+    }
+  }
+
+
   // NEW: A method to update the URL and save it to SharedPreferences
   Future<void> updateManifestUrl(String newUrl) async {
     _manifestUrl = newUrl;
@@ -75,11 +119,11 @@ class AppState with ChangeNotifier {
     notifyListeners();
   }
 
-  // Modified: This is now just for switching between already loaded files
-  Future<void> loadVocabulary(File file) async {
+  // MODIFIED: Accepts an optional initial index and saves state.
+  Future<void> loadVocabulary(File file, {int initialIndex = 0}) async {
     _isLoading = true;
     _activeFilePath = file.path;
-    _currentCardIndex = 0;
+    _currentCardIndex = initialIndex;
     notifyListeners();
 
     try {
@@ -95,14 +139,16 @@ class AppState with ChangeNotifier {
       debugPrint("Error loading or parsing JSON file: $e");
       _vocabulary = [];
       _activeFilePath = null;
+    } finally {
+      // Persist the state. This will save the new session on success,
+      // or clear the session state if loading failed.
+      await _savePracticeState();
     }
 
     _isLoading = false;
     notifyListeners();
   }
-
-  // UPDATED: Now part of the loadSettings method
-  @override
+  
   Future<void> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -202,32 +248,30 @@ class AppState with ChangeNotifier {
 
     final documentsDir = await getApplicationDocumentsDirectory();
     final List<File> jsonFiles = [];
-    final Set<String> newDownloadedPackIds = {}; // Create a temporary set
+    final Set<String> newDownloadedPackIds = {};
 
     if (await documentsDir.exists()) {
-      // Scan subdirectories for json files
       await for (var entity in documentsDir.list(recursive: true)) {
         if (entity is File && entity.path.endsWith('.json')) {
           jsonFiles.add(entity);
-          // NEW: Extract the pack ID from the path.
-          // The pack ID is the name of the parent directory.
           final packId = p.basename(p.dirname(entity.path));
           newDownloadedPackIds.add(packId);
         }
       }
     }
 
-    _downloadedPackIds = newDownloadedPackIds; // Update the main set
+    _downloadedPackIds = newDownloadedPackIds;
     _files = jsonFiles;
 
-    // FIX: Do NOT auto-load a file. Instead, check if the *currently active*
-    // file has been deleted. If so, clear the practice view.
+    // Check if the currently active file has been deleted.
     final activeFileExists =
         _activeFilePath != null && _files.any((f) => f.path == _activeFilePath);
     if (!activeFileExists) {
       _vocabulary = [];
       _activeFilePath = null;
       _currentCardIndex = 0;
+      // If the file is gone, clear the persisted practice state.
+      await _savePracticeState();
     }
 
     _isLoading = false;
@@ -256,6 +300,7 @@ class AppState with ChangeNotifier {
   void nextCard() {
     if (_vocabulary.isNotEmpty) {
       _currentCardIndex = (_currentCardIndex + 1) % _vocabulary.length;
+      _savePracticeState();
       notifyListeners();
     }
   }
@@ -264,6 +309,7 @@ class AppState with ChangeNotifier {
     if (_vocabulary.isNotEmpty) {
       _currentCardIndex =
           (_currentCardIndex - 1 + _vocabulary.length) % _vocabulary.length;
+      _savePracticeState();
       notifyListeners();
     }
   }

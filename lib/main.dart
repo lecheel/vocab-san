@@ -59,7 +59,9 @@ class _AppInitializerState extends State<AppInitializer> {
   }
 
   Future<void> _initializeApp() async {
-    await Provider.of<AppState>(context, listen: false).loadSettings();
+    // UPDATED: Now calls a single, more comprehensive initialization method
+    // in AppState which handles loading settings and resuming the last session.
+    await Provider.of<AppState>(context, listen: false).initialize();
 
     if (mounted) {
       setState(() {
