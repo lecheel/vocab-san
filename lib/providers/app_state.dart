@@ -1,3 +1,5 @@
+
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -8,6 +10,7 @@ import 'package:vocab_jp/models/vocab_pack.dart';
 import 'package:http/http.dart' as http;
 import 'package:archive/archive.dart';
 import 'package:path/path.dart' as p;
+import 'package:vocab_jp/providers/audio_service.dart';
 
 class AppState with ChangeNotifier {
   // This is now the default fallback URL.
@@ -34,6 +37,11 @@ class AppState with ChangeNotifier {
   Set<String> _downloadedPackIds = {};
   TabController? tabController;
 
+  // Auto-play state
+  bool _isAutoPlaying = false;
+  Timer? _autoPlayTimer;
+  AudioService? _audioServiceForAutoplay;
+
   // Getters
   Set<String> get downloadedPackIds => _downloadedPackIds;
   String get manifestUrl => _manifestUrl;
@@ -50,6 +58,14 @@ class AppState with ChangeNotifier {
   int get jpRepeats => _jpRepeats;
   int get enRepeats => _enRepeats;
   int get delaySeconds => _delaySeconds;
+
+  bool get isAutoPlaying => _isAutoPlaying;
+
+  @override
+  void dispose() {
+    stopAutoPlay();
+    super.dispose();
+  }
 
   // NEW: A method to update the URL and save it to SharedPreferences
   Future<void> updateManifestUrl(String newUrl) async {
@@ -266,10 +282,82 @@ class AppState with ChangeNotifier {
     notifyListeners();
   }
 
+
   Future<void> updateDelay(int value) async {
     _delaySeconds = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('delaySeconds', value);
     notifyListeners();
+  }
+
+  // Auto-play Methods
+  void toggleAutoPlay(AudioService audioService) {
+    if (_isAutoPlaying) {
+      stopAutoPlay();
+    } else {
+      startAutoPlay(audioService);
+    }
+  }
+
+  void startAutoPlay(AudioService audioService) {
+    if (vocabulary.isEmpty || _isAutoPlaying) return;
+
+    _isAutoPlaying = true;
+    _audioServiceForAutoplay = audioService; // Store service for cycle
+    notifyListeners();
+    _runAutoPlayCycle();
+  }
+
+  void stopAutoPlay() {
+    if (!_isAutoPlaying) return;
+
+    _isAutoPlaying = false;
+    _autoPlayTimer?.cancel();
+    _autoPlayTimer = null;
+    _audioServiceForAutoplay?.stop(); // Stop any active audio
+    _audioServiceForAutoplay = null;
+    notifyListeners();
+  }
+
+  void _runAutoPlayCycle() async {
+    if (!_isAutoPlaying || _audioServiceForAutoplay == null) return;
+
+    final audioService = _audioServiceForAutoplay!;
+    final card = currentCard;
+
+    if (card == null || activeFilePath == null) {
+      stopAutoPlay();
+      return;
+    }
+
+    try {
+      final mediaDir = p.dirname(activeFilePath!);
+
+      for (int i = 0; i < jpRepeats; i++) {
+        if (!_isAutoPlaying) return; // Check before each playback
+        await audioService.playAudio(card.word, mediaDir, lang: 'ja');
+        if (i < jpRepeats - 1) await Future.delayed(const Duration(milliseconds: 500));
+      }
+
+      if (!_isAutoPlaying) return;
+      await Future.delayed(Duration(seconds: delaySeconds));
+
+      for (int i = 0; i < enRepeats; i++) {
+        if (!_isAutoPlaying) return;
+        await audioService.playAudio(card.english, mediaDir, lang: 'en');
+        if (i < enRepeats - 1) await Future.delayed(const Duration(milliseconds: 500));
+      }
+
+      if (!_isAutoPlaying) return;
+      await Future.delayed(const Duration(seconds: 100));
+
+      nextCard();
+
+      // Schedule the next cycle
+      _autoPlayTimer = Timer(const Duration(milliseconds: 100), _runAutoPlayCycle);
+    } catch (e) {
+      debugPrint("Error during auto-play cycle: $e");
+      stopAutoPlay();
+    }
   }
 }

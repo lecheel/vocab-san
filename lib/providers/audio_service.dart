@@ -7,6 +7,8 @@ import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 class AudioService with ChangeNotifier {
+  AudioPlayer? _player;
+  Completer<void>? _completer;
   bool isPlaying = false;
 
   String _getCacheFilename_rust_style(String text, String lang) {
@@ -38,48 +40,53 @@ class AudioService with ChangeNotifier {
     String lang = "ja",
   }) async {
     if (text.trim().isEmpty) return;
+    await stop(); // Ensure any existing playback is stopped.
 
+    _player = AudioPlayer();
+    _completer = Completer<void>();
     final String filename = _getCacheFilename_rust_style(text, lang);
     final audioFile = File(p.join(mediaDirectoryPath, filename));
-
-    final player = AudioPlayer();
-    // A Completer allows us to create a Future that we can manually complete later.
-    final completer = Completer<void>();
     StreamSubscription? subscription;
 
     try {
       if (!await audioFile.exists()) {
-        await player.release(); // Clean up player if file doesn't exist
         return;
       }
 
       isPlaying = true;
       notifyListeners();
 
-      // Listen for the onPlayerComplete event. When it fires, our sound is done.
-      subscription = player.onPlayerComplete.listen((event) {
-        if (!completer.isCompleted) {
-          completer.complete();
+      subscription = _player!.onPlayerComplete.listen((event) {
+        if (_completer != null && !_completer!.isCompleted) {
+          _completer!.complete();
         }
       });
 
-      // Use DeviceFileSource as it is the most direct method for local files.
-      await player.play(DeviceFileSource(audioFile.path));
-
-      // Wait here until the onPlayerComplete listener calls completer.complete().
-      await completer.future;
+      await _player!.play(DeviceFileSource(audioFile.path));
+      await _completer!.future;
     } catch (e) {
-      if (!completer.isCompleted) {
-        completer.completeError(e);
+      if (_completer != null && !_completer!.isCompleted) {
+        _completer!.completeError(e);
       }
     } finally {
       isPlaying = false;
-      notifyListeners();
-      // Clean up the stream subscription and release the player resources.
       await subscription?.cancel();
-      await player.release();
+      await _player?.release();
+      _player = null;
+      _completer = null;
+      notifyListeners();
     }
   }
 
-  void stop() {}
+  Future<void> stop() async {
+    if (_player != null) {
+      // This call will trigger the onPlayerComplete listener in playAudio,
+      // which handles the cleanup via its finally block.
+      await _player!.stop();
+    }
+    // Manually complete the future as a fallback to ensure playAudio unblocks.
+    if (_completer != null && !_completer!.isCompleted) {
+      _completer!.complete();
+    }
+  }
 }

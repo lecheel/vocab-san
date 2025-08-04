@@ -16,8 +16,7 @@ class PracticeView extends StatefulWidget {
 }
 
 class _PracticeViewState extends State<PracticeView> {
-  bool _isAutoPlaying = false;
-  Timer? _autoPlayTimer;
+  // Auto-play state is now managed by AppState provider.
 
   void _playCurrentJapanese() {
     final appState = Provider.of<AppState>(context, listen: false);
@@ -42,88 +41,17 @@ class _PracticeViewState extends State<PracticeView> {
     }
   }
 
-  // Toggles the auto-play state
+  // This now delegates to the AppState provider
   void _toggleAutoPlay() {
-    if (_isAutoPlaying) {
-      _stopAutoPlay();
-    } else {
-      _startAutoPlay();
-    }
-  }
-
-  void _startAutoPlay() {
-    final appState = Provider.of<AppState>(context, listen: false);
-    if (appState.vocabulary.isEmpty || _isAutoPlaying) return;
-
-    setState(() => _isAutoPlaying = true);
-    _runAutoPlayCycle();
-  }
-
-  void _runAutoPlayCycle() async {
-    if (!_isAutoPlaying) return;
-
     final appState = Provider.of<AppState>(context, listen: false);
     final audioService = Provider.of<AudioService>(context, listen: false);
-    final card = appState.currentCard;
-
-    if (card == null || appState.activeFilePath == null) {
-      _stopAutoPlay();
-      return;
-    }
-
-    try {
-      final mediaDir = p.dirname(
-        appState.activeFilePath!,
-      ); // Get directory once
-
-      for (int i = 0; i < appState.jpRepeats; i++) {
-        if (!_isAutoPlaying) return; // Allow interruption
-        await audioService.playAudio(card.word, mediaDir, lang: 'ja');
-        if (i < appState.jpRepeats - 1)
-          await Future.delayed(const Duration(milliseconds: 500));
-      }
-
-      if (!_isAutoPlaying) return;
-      await Future.delayed(Duration(seconds: appState.delaySeconds));
-
-      // Play English audio for the configured number of repeats
-      for (int i = 0; i < appState.enRepeats; i++) {
-        if (!_isAutoPlaying) return; // Allow interruption
-        await audioService.playAudio(card.english, mediaDir, lang: 'en');
-        if (i < appState.enRepeats - 1)
-          await Future.delayed(const Duration(milliseconds: 500));
-      }
-
-      if (!_isAutoPlaying) return;
-      await Future.delayed(Duration(seconds: appState.delaySeconds));
-
-      // Move to the next card
-      appState.nextCard();
-
-      // Schedule the next cycle using a Timer to avoid deep recursion stacks
-      _autoPlayTimer = Timer(
-        const Duration(milliseconds: 100),
-        _runAutoPlayCycle,
-      );
-    } catch (e) {
-      print("Error during auto-play cycle: $e");
-      _stopAutoPlay();
-    }
-  }
-
-  // Stops the auto-play loop and cleans up resources
-  void _stopAutoPlay() {
-    setState(() {
-      _isAutoPlaying = false;
-      _autoPlayTimer?.cancel();
-      _autoPlayTimer = null;
-      Provider.of<AudioService>(context, listen: false).stop();
-    });
+    appState.toggleAutoPlay(audioService);
   }
 
   @override
   void dispose() {
-    _stopAutoPlay(); // Ensure the timer is cancelled when the widget is disposed
+    // The auto-play lifecycle is now managed by AppState,
+    // so we do not stop it when this widget is disposed.
     super.dispose();
   }
 
@@ -143,6 +71,8 @@ class _PracticeViewState extends State<PracticeView> {
             ),
           );
         }
+
+        final isAutoPlaying = appState.isAutoPlaying;
 
         // We wrap the entire view's content in a SafeArea widget.
         return SafeArea(
@@ -167,27 +97,27 @@ class _PracticeViewState extends State<PracticeView> {
                     IconButton(
                       icon: const Icon(Icons.arrow_back_ios),
                       tooltip: 'Previous Card (Left Arrow)',
-                      onPressed: _isAutoPlaying ? null : appState.previousCard,
+                      onPressed: isAutoPlaying ? null : appState.previousCard,
                       iconSize: 32,
                     ),
                     IconButton(
                       icon: const Icon(Icons.volume_up_rounded),
                       tooltip: 'Play Japanese (Up Arrow / Space)',
-                      onPressed: _isAutoPlaying ? null : _playCurrentJapanese,
+                      onPressed: isAutoPlaying ? null : _playCurrentJapanese,
                       color: Colors.lightBlueAccent,
                       iconSize: 40,
                     ),
                     IconButton(
                       icon: const Icon(Icons.volume_up_rounded),
                       tooltip: 'Play English (Down Arrow / Enter)',
-                      onPressed: _isAutoPlaying ? null : _playCurrentEnglish,
+                      onPressed: isAutoPlaying ? null : _playCurrentEnglish,
                       color: Colors.greenAccent,
                       iconSize: 40,
                     ),
                     IconButton(
                       icon: const Icon(Icons.arrow_forward_ios),
                       tooltip: 'Next Card (Right Arrow)',
-                      onPressed: _isAutoPlaying ? null : appState.nextCard,
+                      onPressed: isAutoPlaying ? null : appState.nextCard,
                       iconSize: 32,
                     ),
                   ],
@@ -197,15 +127,15 @@ class _PracticeViewState extends State<PracticeView> {
                 ElevatedButton.icon(
                   onPressed: _toggleAutoPlay,
                   icon: Icon(
-                    _isAutoPlaying
+                    isAutoPlaying
                         ? Icons.stop_circle_outlined
                         : Icons.play_circle_outline,
                   ),
                   label: Text(
-                    _isAutoPlaying ? '⏹️ Stop Auto-Play' : '▶️ Start Auto-Play',
+                    isAutoPlaying ? '⏹️ Stop Auto-Play' : '▶️ Start Auto-Play',
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _isAutoPlaying
+                    backgroundColor: isAutoPlaying
                         ? Colors.red.shade700
                         : Colors.teal,
                     foregroundColor: Colors.white,
