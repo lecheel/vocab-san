@@ -13,11 +13,23 @@ import 'package:path/path.dart' as p;
 import 'package:vocab_jp/providers/audio_service.dart';
 
 class AppState with ChangeNotifier {
-  // This is now the default fallback URL.
-  static const String DEFAULT_MANIFEST_URL =
-      'https://raw.githubusercontent.com/lecheel/vocab-san/download_pack/main/manifest.json';
+  // NEW: A list of predefined manifest URLs for easy switching.
+  static const List<Map<String, String>> PREDEFINED_MANIFESTS = [
+    {
+      'name': 'Official Pack Manifest',
+      'url': 'https://raw.githubusercontent.com/lecheel/vocab-san/download_pack/main/manifest.json',
+    },
+    // Example for future expansion:
+    // {
+    //   'name': 'Community Sourced Packs',
+    //   'url': 'https://some.other.url/manifest.json',
+    // },
+  ];
 
-  // New variable to hold the current URL.
+  // UPDATED: The default URL is now derived from the predefined list.
+  static final String DEFAULT_MANIFEST_URL = PREDEFINED_MANIFESTS.first['url']!;
+
+  // This variable still holds the currently active URL.
   String _manifestUrl = DEFAULT_MANIFEST_URL;
 
   List<File> _files = [];
