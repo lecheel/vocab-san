@@ -23,7 +23,7 @@ class KeyboardHandler extends StatelessWidget {
     final appState = Provider.of<AppState>(context, listen: false);
     final audioService = Provider.of<AudioService>(context, listen: false);
 
-    // Tab switching (Ctrl + 1/2/3)
+    // Tab switching (Ctrl + 1/2/3/4/5)
     if (event.isControlPressed) {
       if (event.logicalKey == LogicalKeyboardKey.digit1) {
         appState.tabController?.animateTo(0);
@@ -34,7 +34,15 @@ class KeyboardHandler extends StatelessWidget {
         return;
       }
       if (event.logicalKey == LogicalKeyboardKey.digit3) {
-        appState.tabController?.animateTo(2);
+        appState.tabController?.animateTo(2); // Favorites
+        return;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.digit4) {
+        appState.tabController?.animateTo(3); // Playback
+        return;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.digit5) {
+        appState.tabController?.animateTo(4); // Settings
         return;
       }
       if (event.logicalKey == LogicalKeyboardKey.keyO) {
@@ -43,13 +51,24 @@ class KeyboardHandler extends StatelessWidget {
       }
     }
 
-    // Only handle practice shortcuts if on the practice tab
-    if (appState.tabController?.index != 1) return;
+    // Only handle practice shortcuts if on the practice tab (index 1)
+    if (appState.tabController?.index == 1) {
+      _handlePracticeKeys(event, appState, audioService);
+    }
+    // NEW: Handle shortcuts if on the favorites tab (index 2)
+    else if (appState.tabController?.index == 2) {
+      _handleFavoritesKeys(event, appState, audioService);
+    }
+  }
 
+  // NEW: Extracted key handling for practice view for clarity
+  void _handlePracticeKeys(RawKeyEvent event, AppState appState, AudioService audioService) {
     final currentCard = appState.currentCard;
     final mediaDir = appState.activeFilePath != null
         ? p.dirname(appState.activeFilePath!)
         : null;
+
+    if (currentCard == null || mediaDir == null) return;
 
     switch (event.logicalKey) {
       case LogicalKeyboardKey.arrowLeft:
@@ -60,16 +79,57 @@ class KeyboardHandler extends StatelessWidget {
         break;
       case LogicalKeyboardKey.arrowUp:
       case LogicalKeyboardKey.space:
-        if (currentCard != null && mediaDir != null) {
-          audioService.playAudio(currentCard.word, mediaDir, lang: 'ja');
+        audioService.playAudio(currentCard.word, mediaDir, lang: 'ja');
+        break;
+      case LogicalKeyboardKey.arrowDown:
+      case LogicalKeyboardKey.enter:
+      case LogicalKeyboardKey.numpadEnter:
+        audioService.playAudio(currentCard.english, mediaDir, lang: 'en');
+        break;
+      // NEW: Shortcut to favorite a card
+      case LogicalKeyboardKey.keyF:
+        appState.toggleFavorite(currentCard);
+        break;
+    }
+  }
+
+  // NEW: Key handling for the new favorites view
+  void _handleFavoritesKeys(RawKeyEvent event, AppState appState, AudioService audioService) {
+    final currentCard = appState.currentFavoriteCard;
+    if (currentCard == null) return;
+
+    // To play audio, we need to find the original media directory.
+    // This is a limitation: favorited words must have their packs still downloaded.
+    final mediaDir = appState.files
+            .firstWhere(
+                (file) => file.path.contains(p.dirname(currentCard.word)), // Heuristic
+                orElse: () => File(''))
+            .path;
+
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowLeft:
+        appState.previousFavoriteCard();
+        break;
+      case LogicalKeyboardKey.arrowRight:
+        appState.nextFavoriteCard();
+        break;
+      case LogicalKeyboardKey.arrowUp:
+      case LogicalKeyboardKey.space:
+        if (mediaDir.isNotEmpty) {
+          audioService.playAudio(currentCard.word, p.dirname(mediaDir), lang: 'ja');
         }
         break;
       case LogicalKeyboardKey.arrowDown:
       case LogicalKeyboardKey.enter:
       case LogicalKeyboardKey.numpadEnter:
-        if (currentCard != null && mediaDir != null) {
-          audioService.playAudio(currentCard.english, mediaDir, lang: 'en');
+        if (mediaDir.isNotEmpty) {
+          audioService.playAudio(currentCard.english, p.dirname(mediaDir), lang: 'en');
         }
+        break;
+      case LogicalKeyboardKey.keyF:
+      case LogicalKeyboardKey.delete:
+      case LogicalKeyboardKey.backspace:
+        appState.toggleFavorite(currentCard);
         break;
     }
   }
@@ -85,6 +145,7 @@ class KeyboardHandler extends StatelessWidget {
       await Provider.of<AppState>(context, listen: false).addFiles(files);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

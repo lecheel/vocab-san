@@ -73,24 +73,28 @@ class _PracticeViewState extends State<PracticeView> {
         }
 
         final isAutoPlaying = appState.isAutoPlaying;
+        final currentCard = appState.currentCard!;
+        final isFavorite = appState.favoriteWords.contains(currentCard.word);
 
-        // We wrap the entire view's content in a SafeArea widget.
         return SafeArea(
-          // We only need padding on the bottom. The AppBar handles the top.
           top: false,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // The vocabulary card display
-                Expanded(child: VocabularyCard(entry: appState.currentCard!)),
+                // UPDATED: VocabularyCard now receives favorite status and a callback.
+                Expanded(
+                  child: VocabularyCard(
+                    entry: currentCard,
+                    isFavorite: isFavorite,
+                    onFavoriteToggled: () => appState.toggleFavorite(currentCard),
+                  ),
+                ),
                 const SizedBox(height: 16),
-                // Progress indicator
                 Text(
                   'Card ${appState.currentCardIndex + 1} of ${appState.vocabulary.length}',
                 ),
                 const SizedBox(height: 16),
-                // Manual playback controls
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [

@@ -26,4 +26,15 @@ class VocabularyEntry {
       english: json['english'] as String? ?? '',
     );
   }
+  
+  Map<String, dynamic> toJson() {
+    return {
+      'word': word,
+      'romaji': romaji,
+      'kanji': kanji,
+      'chinese': chinese,
+      'english': english,
+    };
+  }  
+  
 }

@@ -1,7 +1,7 @@
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,7 +17,8 @@ class AppState with ChangeNotifier {
   static const List<Map<String, String>> PREDEFINED_MANIFESTS = [
     {
       'name': 'Official Pack Manifest',
-      'url': 'https://raw.githubusercontent.com/lecheel/vocab-san/download_pack/main/manifest.json',
+      'url':
+          'https://raw.githubusercontent.com/lecheel/vocab-san/download_pack/main/manifest.json',
     },
     // Example for future expansion:
     // {
@@ -54,6 +55,12 @@ class AppState with ChangeNotifier {
   Timer? _autoPlayTimer;
   AudioService? _audioServiceForAutoplay;
 
+  // NEW: State for Favorites
+  static const String FAVORITES_FILENAME = 'favorites.json';
+  List<VocabularyEntry> _favorites = [];
+  Set<String> _favoriteWords = {};
+  int _currentFavoriteIndex = 0;
+
   // Getters
   Set<String> get downloadedPackIds => _downloadedPackIds;
   String get manifestUrl => _manifestUrl;
@@ -73,6 +80,13 @@ class AppState with ChangeNotifier {
 
   bool get isAutoPlaying => _isAutoPlaying;
 
+  // NEW: Getters for Favorites
+  List<VocabularyEntry> get favorites => _favorites;
+  Set<String> get favoriteWords => _favoriteWords;
+  int get currentFavoriteIndex => _currentFavoriteIndex;
+  VocabularyEntry? get currentFavoriteCard =>
+      _favorites.isEmpty ? null : _favorites[_currentFavoriteIndex];
+
   @override
   void dispose() {
     stopAutoPlay();
@@ -82,6 +96,7 @@ class AppState with ChangeNotifier {
   // NEW: A single method to orchestrate app startup.
   Future<void> initialize() async {
     await loadSettings();
+    await _loadFavorites(); // Load favorites on startup
     await _resumeLastPractice();
   }
 
@@ -122,7 +137,6 @@ class AppState with ChangeNotifier {
     }
   }
 
-
   // NEW: A method to update the URL and save it to SharedPreferences
   Future<void> updateManifestUrl(String newUrl) async {
     _manifestUrl = newUrl;
@@ -160,7 +174,7 @@ class AppState with ChangeNotifier {
     _isLoading = false;
     notifyListeners();
   }
-  
+
   Future<void> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -340,7 +354,6 @@ class AppState with ChangeNotifier {
     notifyListeners();
   }
 
-
   Future<void> updateDelay(int value) async {
     _delaySeconds = value;
     final prefs = await SharedPreferences.getInstance();
@@ -394,7 +407,8 @@ class AppState with ChangeNotifier {
       for (int i = 0; i < jpRepeats; i++) {
         if (!_isAutoPlaying) return; // Check before each playback
         await audioService.playAudio(card.word, mediaDir, lang: 'ja');
-        if (i < jpRepeats - 1) await Future.delayed(const Duration(milliseconds: 500));
+        if (i < jpRepeats - 1)
+          await Future.delayed(const Duration(milliseconds: 500));
       }
 
       if (!_isAutoPlaying) return;
@@ -403,7 +417,8 @@ class AppState with ChangeNotifier {
       for (int i = 0; i < enRepeats; i++) {
         if (!_isAutoPlaying) return;
         await audioService.playAudio(card.english, mediaDir, lang: 'en');
-        if (i < enRepeats - 1) await Future.delayed(const Duration(milliseconds: 500));
+        if (i < enRepeats - 1)
+          await Future.delayed(const Duration(milliseconds: 500));
       }
 
       if (!_isAutoPlaying) return;
@@ -412,10 +427,83 @@ class AppState with ChangeNotifier {
       nextCard();
 
       // Schedule the next cycle
-      _autoPlayTimer = Timer(const Duration(milliseconds: 100), _runAutoPlayCycle);
+      _autoPlayTimer = Timer(
+        const Duration(milliseconds: 100),
+        _runAutoPlayCycle,
+      );
     } catch (e) {
       debugPrint("Error during auto-play cycle: $e");
       stopAutoPlay();
+    }
+  }
+  // --- NEW: Favorites Management Methods ---
+
+  Future<void> _loadFavorites() async {
+    try {
+      final documentsDir = await getApplicationDocumentsDirectory();
+      final file = File(p.join(documentsDir.path, FAVORITES_FILENAME));
+
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        final List<dynamic> jsonList = jsonDecode(content);
+        _favorites = jsonList
+            .map((json) => VocabularyEntry.fromJson(json))
+            .toList();
+        _favoriteWords = _favorites.map((e) => e.word).toSet();
+      }
+    } catch (e) {
+      debugPrint("Error loading favorites: $e");
+      _favorites = [];
+      _favoriteWords = {};
+    }
+    notifyListeners();
+  }
+
+  Future<void> _saveFavorites() async {
+    try {
+      final documentsDir = await getApplicationDocumentsDirectory();
+      final file = File(p.join(documentsDir.path, FAVORITES_FILENAME));
+      // The `toJson` method on VocabularyEntry is used here.
+      final jsonString = jsonEncode(_favorites.map((e) => e.toJson()).toList());
+      await file.writeAsString(jsonString);
+    } catch (e) {
+      debugPrint("Error saving favorites: $e");
+    }
+  }
+
+  void toggleFavorite(VocabularyEntry entry) {
+    if (_favoriteWords.contains(entry.word)) {
+      // Unfavorite
+      _favorites.removeWhere((item) => item.word == entry.word);
+      _favoriteWords.remove(entry.word);
+    } else {
+      // Favorite
+      _favorites.add(entry);
+      _favoriteWords.add(entry.word);
+    }
+
+    // Adjust the current index to prevent out-of-bounds errors if an item was removed.
+    _currentFavoriteIndex = _currentFavoriteIndex.clamp(
+      0,
+      max(0, _favorites.length - 1),
+    );
+
+    _saveFavorites();
+    notifyListeners();
+  }
+
+  void nextFavoriteCard() {
+    if (_favorites.isNotEmpty) {
+      _currentFavoriteIndex = (_currentFavoriteIndex + 1) % _favorites.length;
+      notifyListeners();
+    }
+  }
+
+  void previousFavoriteCard() {
+    if (_favorites.isNotEmpty) {
+      _currentFavoriteIndex =
+          (_currentFavoriteIndex - 1 + _favorites.length) % _favorites.length;
+      notifyListeners();
     }
   }
 }

@@ -7,6 +7,7 @@ import 'package:vocab_jp/widgets/file_list_view.dart';
 import 'package:vocab_jp/widgets/practice_view.dart';
 import 'package:vocab_jp/widgets/settings_view.dart';
 import 'package:vocab_jp/widgets/app_settings_view.dart';
+import 'package:vocab_jp/widgets/favorites_view.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -95,8 +96,8 @@ class _HomePageState extends State<HomePage>
   @override
   void initState() {
     super.initState();
-    // UPDATED: Tab controller length is now 4
-    _tabController = TabController(length: 4, vsync: this); 
+    // UPDATED: Tab controller length is now 5 to accommodate Favorites tab.
+    _tabController = TabController(length: 5, vsync: this);
     Provider.of<AppState>(context, listen: false).tabController = _tabController;
   }
 
@@ -114,29 +115,31 @@ class _HomePageState extends State<HomePage>
     return KeyboardHandler(
       focusNode: _focusNode,
       child: DefaultTabController(
-        length: 4,
+        length: 5, // UPDATED: Length is 5
         child: Scaffold(
           appBar: AppBar(
             title: const Text('Vocab-San'),
             bottom: TabBar(
               controller: _tabController,
               tabs: const [
-                // UPDATED: Added a new Tab
-                Tab(icon: Icon(Icons.download), text: "Packs"), // Renamed for clarity
+                // UPDATED: Added a new Favorites Tab
+                Tab(icon: Icon(Icons.download), text: "Packs"),
                 Tab(icon: Icon(Icons.psychology), text: "Practice"),
-                Tab(icon: Icon(Icons.audiotrack), text: "Playback"), // Renamed for clarity
-                Tab(icon: Icon(Icons.settings), text: "App Settings"), // The new tab
+                Tab(icon: Icon(Icons.star), text: "Favorites"), // NEW
+                Tab(icon: Icon(Icons.audiotrack), text: "Playback"),
+                Tab(icon: Icon(Icons.settings), text: "App Settings"),
               ],
             ),
           ),
           body: TabBarView(
             controller: _tabController,
             children: const [
-              // UPDATED: Added the new view
+              // UPDATED: Added the new FavoritesView
               FileListView(),
               PracticeView(),
-              SettingsView(), // This is the playback settings view
-              AppSettingsView(), // This is our new app settings view
+              FavoritesView(), // NEW
+              SettingsView(),
+              AppSettingsView(),
             ],
           ),
         ),
