@@ -115,7 +115,7 @@ class _HomePageState extends State<HomePage>
     return KeyboardHandler(
       focusNode: _focusNode,
       child: DefaultTabController(
-        length: 5, // UPDATED: Length is 5
+        length: 5,
         child: Scaffold(
           appBar: AppBar(
             title: const Text('Vocab-San'),
@@ -125,7 +125,7 @@ class _HomePageState extends State<HomePage>
                 // UPDATED: Added a new Favorites Tab
                 Tab(icon: Icon(Icons.download), text: "Packs"),
                 Tab(icon: Icon(Icons.psychology), text: "Practice"),
-                Tab(icon: Icon(Icons.star), text: "Favorites"), // NEW
+                Tab(icon: Icon(Icons.star), text: "Favorites"),
                 Tab(icon: Icon(Icons.audiotrack), text: "Playback"),
                 Tab(icon: Icon(Icons.settings), text: "App Settings"),
               ],
@@ -133,11 +133,13 @@ class _HomePageState extends State<HomePage>
           ),
           body: TabBarView(
             controller: _tabController,
+            // NEW: This disables the default swipe-to-change-tab behavior.
+            physics: const NeverScrollableScrollPhysics(),
             children: const [
               // UPDATED: Added the new FavoritesView
               FileListView(),
               PracticeView(),
-              FavoritesView(), // NEW
+              FavoritesView(),
               SettingsView(),
               AppSettingsView(),
             ],

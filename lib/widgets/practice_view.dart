@@ -82,12 +82,33 @@ class _PracticeViewState extends State<PracticeView> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // UPDATED: VocabularyCard now receives favorite status and a callback.
                 Expanded(
-                  child: VocabularyCard(
-                    entry: currentCard,
-                    isFavorite: isFavorite,
-                    onFavoriteToggled: () => appState.toggleFavorite(currentCard),
+                  // NEW: Wrapped the card in a GestureDetector for swipe and tap controls.
+                  child: GestureDetector(
+                    onHorizontalDragEnd: (details) {
+                      // Gestures are disabled during auto-play.
+                      if (isAutoPlaying) return;
+
+                      const swipeThreshold = 100;
+                      // Swipe right to left (next card).
+                      if (details.primaryVelocity! < -swipeThreshold) {
+                        appState.nextCard();
+                        _playCurrentJapanese();
+                      }
+                      // Swipe left to right (previous card).
+                      else if (details.primaryVelocity! > swipeThreshold) {
+                        appState.previousCard();
+                        _playCurrentJapanese();
+                      }
+                    },
+                    // Tap to play Japanese audio. Disabled during auto-play.
+                    onTap: isAutoPlaying ? null : _playCurrentJapanese,
+                    child: VocabularyCard(
+                      entry: currentCard,
+                      isFavorite: isFavorite,
+                      onFavoriteToggled: () =>
+                          appState.toggleFavorite(currentCard),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -127,7 +148,6 @@ class _PracticeViewState extends State<PracticeView> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                // Auto-play button
                 ElevatedButton.icon(
                   onPressed: _toggleAutoPlay,
                   icon: Icon(
